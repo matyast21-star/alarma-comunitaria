@@ -59,7 +59,7 @@ export async function cifrar(sub, texto) {
   return concat(salt, rs, new Uint8Array([asPub.length]), asPub, cifrado);
 }
 
-// Envía una notificación. Devuelve el código HTTP (404/410 = suscripción caducada).
+// Envía una notificación. Devuelve { status, detalle } (404/410 = suscripción caducada).
 export async function enviarPush(sub, texto, vapid, contacto = 'mailto:admin@veci.plus') {
   const body = await cifrar(sub, texto);
   const jwt = await jwtVapid(sub.endpoint, vapid, contacto);
@@ -74,5 +74,5 @@ export async function enviarPush(sub, texto, vapid, contacto = 'mailto:admin@vec
     },
     body,
   });
-  return r.status;
+  return { status: r.status, detalle: r.status >= 300 ? (await r.text().catch(() => '')).slice(0, 200) : '' };
 }

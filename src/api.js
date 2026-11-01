@@ -33,14 +33,17 @@ async function enviarLote(env, alerta, parte) {
   const todos = (await listarVecinos(env.VECI_KV)).filter((x) => x.sub.endpoint !== alerta.endpoint);
   const lote = todos.slice(parte * POR_LOTE, (parte + 1) * POR_LOTE);
   const payload = JSON.stringify({ id: alerta.id, tipo: alerta.tipo, titulo: alerta.titulo, cuerpo: alerta.cuerpo });
-  let enviados = 0;
+  let enviados = 0; const resultados = [];
   await Promise.all(lote.map(async (x) => {
+    const servicio = new URL(x.sub.endpoint).host;
     try {
       const st = await enviarPush(x.sub, payload, v, CONTACTO);
-      if (st === 404 || st === 410) await env.VECI_KV.delete(x.key); // suscripción caducada
-      else if (st < 300) enviados++;
-    } catch (e) { /* se ignora un teléfono con error */ }
+      resultados.push({ servicio, st: st.status, detalle: st.status >= 300 ? st.detalle : '' });
+      if (st.status === 404 || st.status === 410) await env.VECI_KV.delete(x.key); // suscripción caducada
+      else if (st.status < 300) enviados++;
+    } catch (e) { resultados.push({ servicio, st: 0, detalle: String(e).slice(0, 200) }); }
   }));
+  await env.VECI_KV.put('diagnostico', JSON.stringify({ fecha: new Date().toISOString(), alerta: alerta.id, parte, total: todos.length, enviados, resultados: resultados.slice(0, 20) }));
   return { enviados, partes: Math.ceil(todos.length / POR_LOTE), total: todos.length };
 }
 
@@ -50,6 +53,12 @@ export async function api(request, env, ruta) {
   const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
   const codigo = body.codigo ?? url.searchParams.get('codigo') ?? '';
   const codigoOk = !env.CODIGO_COMUNIDAD || codigo === env.CODIGO_COMUNIDAD;
+
+  if (ruta === 'estado' && request.method === 'GET') {
+    const vecinos = await listarVecinos(env.VECI_KV);
+    return json({ vecinosRegistrados: vecinos.length, servicios: [...new Set(vecinos.map((x) => new URL(x.sub.endpoint).host))],
+      pideCodigo: !!env.CODIGO_COMUNIDAD, ultimoEnvio: await env.VECI_KV.get('diagnostico', 'json') });
+  }
 
   if (ruta === 'config' && request.method === 'GET') {
     const v = await vapid(env.VECI_KV);
