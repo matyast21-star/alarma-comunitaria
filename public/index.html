@@ -139,6 +139,7 @@ dialog .nota{font-size:.82rem;color:#94a3b8;margin-top:12px}
   <button class="btn" id="silenciar">🔇 Silenciar y cerrar</button>
 </dialog>
 <audio id="sirena" src="sirena.mp3" loop preload="auto"></audio>
+<audio id="aviso" src="aviso.mp3" preload="auto"></audio>
 
 <script>
 const $ = (id) => document.getElementById(id);
@@ -272,18 +273,23 @@ $('grupo').onclick = () => enviar('grupo');
 // ---------- Recibir alertas: mapa + sirena ----------
 let vistas = new Set(JSON.parse(localStorage.getItem('vistas') || '[]'));
 const guardarVistas = () => localStorage.setItem('vistas', JSON.stringify([...vistas].slice(-60)));
-const sirena = $('sirena');
+// Robo: sirena que se repite. Aviso o actividad inusual: campanita suave.
+let tipoActual = 'robo';
 function sonar() {
-  sirena.currentTime = 0;
-  sirena.play().then(() => { $('avSonido').hidden = true; }).catch(() => { $('avSonido').hidden = false; });
-  navigator.vibrate?.([900, 300, 900, 300, 900]);
+  callar();
+  const audio = tipoActual === 'robo' ? $('sirena') : $('aviso');
+  audio.currentTime = 0;
+  audio.play().then(() => { $('avSonido').hidden = true; }).catch(() => { $('avSonido').hidden = false; });
+  navigator.vibrate?.(tipoActual === 'robo' ? [900, 300, 900, 300, 900] : [300, 150, 300]);
 }
-function callar() { sirena.pause(); }
+function callar() { $('sirena').pause(); $('aviso').pause(); }
 $('avSonido').onclick = sonar;
 $('silenciar').onclick = () => { callar(); $('alertaVista').close(); $('avMapa').src = 'about:blank'; };
 
 function mostrarAlerta(a, conSonido) {
   vistas.add(a.id); guardarVistas();
+  tipoActual = a.tipo;
+  $('avSonido').textContent = a.tipo === 'robo' ? '🔊 Tocar para escuchar la sirena' : '🔊 Tocar para escuchar el aviso';
   const v = $('alertaVista'); v.className = a.tipo;
   $('avTitulo').textContent = a.titulo;
   $('avTexto').textContent = a.mensaje || (a.tipo === 'robo' ? 'Un vecino activó la alarma.' : '');

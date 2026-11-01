@@ -11,8 +11,8 @@ import com.google.androidbrowserhelper.trusted.DelegationService;
 
 /**
  * Chrome entrega aquí las notificaciones de la página. Las mostramos en el canal
- * "Alarmas de la comunidad", que suena con la sirena de VECI+ aunque el teléfono
- * esté bloqueado. Las alertas de robo repiten la sirena hasta que se abre o descarta.
+ * de VECI+: el robo suena con la sirena (volumen de alarma, se repite hasta atenderla)
+ * y los avisos de actividad inusual con una campanita suave.
  */
 public class AlarmaService extends DelegationService {
 
@@ -22,25 +22,25 @@ public class AlarmaService extends DelegationService {
         NotificationManager nm = (NotificationManager) getSystemService(NOTIFICATION_SERVICE);
         if (!nm.areNotificationsEnabled()) return false;
 
+        CharSequence titulo = notification.extras != null ? notification.extras.getCharSequence(Notification.EXTRA_TITLE) : null;
+        boolean robo = titulo != null && titulo.toString().toUpperCase().contains("ROBO");
+
         Notification n;
         if (Build.VERSION.SDK_INT >= 26) {
             Alarma.crearCanal(this);
             n = Notification.Builder.recoverBuilder(this, notification)
-                    .setChannelId(Alarma.CANAL)
-                    .setCategory(Notification.CATEGORY_ALARM)
+                    .setChannelId(robo ? Alarma.CANAL : Alarma.CANAL_AVISO)
+                    .setCategory(robo ? Notification.CATEGORY_ALARM : Notification.CATEGORY_MESSAGE)
                     .build();
         } else {
             n = notification;
-            n.sound = Alarma.sonido(this);
-            n.audioStreamType = AudioManager.STREAM_ALARM;
+            n.sound = robo ? Alarma.sonido(this) : Alarma.sonidoAviso(this);
+            n.audioStreamType = robo ? AudioManager.STREAM_ALARM : AudioManager.STREAM_NOTIFICATION;
             n.priority = Notification.PRIORITY_MAX;
-            n.vibrate = new long[]{0, 900, 300, 900, 300, 900};
+            n.vibrate = robo ? new long[]{0, 900, 300, 900, 300, 900} : new long[]{0, 300, 150, 300};
         }
 
-        CharSequence titulo = n.extras != null ? n.extras.getCharSequence(Notification.EXTRA_TITLE) : null;
-        if (titulo != null && titulo.toString().toUpperCase().contains("ROBO")) {
-            n.flags |= Notification.FLAG_INSISTENT; // la sirena se repite hasta atender la alerta
-        }
+        if (robo) n.flags |= Notification.FLAG_INSISTENT; // la sirena se repite hasta atender la alerta
 
         nm.notify(platformTag, platformId, n);
         return true;
