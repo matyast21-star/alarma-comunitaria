@@ -8,21 +8,20 @@ Página web sencilla y gratuita para que los vecinos den aviso al grupo de Whats
 
 Además, los vecinos que activan VECI+ en su teléfono reciben una **notificación de alarma** al instante (aunque tengan la página cerrada) y, al abrirla, suena la **sirena de VECI+** y ven el mapa.
 
-## Publicar en Cloudflare Pages
+## Publicación en Cloudflare (Worker)
 
-Workers & Pages → Create → Pages → Connect to Git → este repositorio.
-- Framework preset: **None** · Build command: *(vacío)* · Build output directory: `/`
+El proyecto está conectado a Cloudflare Workers desde este repositorio: cada cambio en `main` se publica solo (`npx wrangler deploy`).
+La configuración está en `wrangler.jsonc`; el espacio KV `VECI_KV` se crea automáticamente en el primer despliegue.
 
-### Activar las alarmas (una sola vez)
-1. Cloudflare → **Storage & Databases → KV → Create** → nombre `veci-kv`.
-2. Proyecto de Pages → **Settings → Bindings → Add → KV namespace**: nombre de variable `VECI_KV`, espacio `veci-kv`. Guardar.
-3. **Deployments** → en el último despliegue, **Retry deployment**.
-
-Opcional: variable de entorno `CODIGO_COMUNIDAD` para que solo quien tenga el código pueda activar alarmas y enviar avisos.
+Opcional: variable `CODIGO_COMUNIDAD` (Settings → Variables and Secrets) para que solo quien tenga el código pueda activar alarmas y enviar avisos.
 
 Todo funciona dentro del plan gratuito de Cloudflare.
 
 ## Estructura
-- `index.html`, `sw.js`, `sirena.mp3`, íconos: la página.
-- `functions/api/[[ruta]].js`: API (registro de teléfonos, alertas).
-- `lib/webpush.js`: envío de notificaciones Web Push sin dependencias.
+- `public/`: la página (`index.html`, `sw.js`, `sirena.mp3`, logo e íconos).
+- `src/index.js`: Worker; `/api/*` va a la API y el resto a `public/`.
+- `src/api.js`: registro de teléfonos y alertas (KV).
+- `src/webpush.js`: envío de notificaciones Web Push sin dependencias.
+
+## Probar en local
+`npx wrangler dev`

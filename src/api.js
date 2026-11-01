@@ -1,6 +1,6 @@
-// API de VECI+ (Cloudflare Pages Functions). Requiere un espacio KV enlazado como VECI_KV.
+// API de VECI+ (Cloudflare Worker). Usa un espacio KV enlazado como VECI_KV.
 // Variable opcional: CODIGO_COMUNIDAD (si existe, se pide para registrarse y enviar alertas).
-import { generarVapid, enviarPush } from '../../lib/webpush.js';
+import { generarVapid, enviarPush } from './webpush.js';
 
 const POR_LOTE = 40;            // notificaciones por invocación (límite gratis: 50 subpeticiones)
 const CONTACTO = 'mailto:contacto@fluva.cl';
@@ -44,9 +44,8 @@ async function enviarLote(env, alerta, parte) {
   return { enviados, partes: Math.ceil(todos.length / POR_LOTE), total: todos.length };
 }
 
-export async function onRequest({ request, env, params }) {
+export async function api(request, env, ruta) {
   if (!env.VECI_KV) return json({ error: 'Falta configurar el espacio KV (VECI_KV) en Cloudflare' }, 500);
-  const ruta = (params.ruta || []).join('/');
   const url = new URL(request.url);
   const body = request.method === 'POST' ? await request.json().catch(() => ({})) : {};
   const codigo = body.codigo ?? url.searchParams.get('codigo') ?? '';
