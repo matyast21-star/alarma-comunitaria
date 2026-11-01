@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#b91c1c">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="Alarma">
+<title>Alarma Comunitaria</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg">
+<link rel="apple-touch-icon" href="icon-192.png">
+<style>
+*{box-sizing:border-box}
+body{margin:0 auto;max-width:480px;font-family:system-ui,-apple-system,sans-serif;background:#111827;color:#f9fafb;padding:12px 16px 32px}
+h1{font-size:1.2rem;margin:4px 0 14px;text-align:center}
+button,a.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;border:0;border-radius:14px;color:#fff;font-size:1.15rem;font-weight:700;padding:16px;text-decoration:none;cursor:pointer}
+#robo{position:relative;overflow:hidden;flex-direction:column;aspect-ratio:1;max-height:56vh;width:auto;margin:0 auto;border-radius:50%;background:radial-gradient(circle at 35% 30%,#ef4444,#991b1b);box-shadow:0 0 0 8px #7f1d1d66,0 10px 30px #000a;font-size:1.35rem;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:none}
+#robo .ico{font-size:3.6rem}#robo small{font-weight:400;font-size:.85rem;opacity:.9}
+#barra{position:absolute;left:0;top:0;bottom:0;width:0;background:#fff4;pointer-events:none}
+#llamar{background:#1d4ed8;width:auto;max-width:260px;margin:20px auto 0;font-size:1rem;padding:12px 20px;border-radius:999px}
+#inusual{background:#b45309;margin-top:12px}
+textarea,input{width:100%;padding:12px;border-radius:10px;border:1px solid #374151;background:#1f2937;color:#fff;font-size:1rem;margin-top:6px}
+textarea{min-height:80px}
+#formInusual{margin-top:10px}#formInusual button{margin-top:8px;background:#b45309}
+#estado{text-align:center;min-height:1.4em;margin:12px 0 0;font-weight:600}
+details{margin-top:24px;background:#1f2937;border-radius:10px;padding:10px 14px;color:#d1d5db;font-size:.92rem}
+summary{cursor:pointer;font-weight:600}
+label{display:block;margin-top:10px}
+.guardar{background:#374151;margin-top:10px;font-size:1rem;padding:12px}
+.nota{color:#9ca3af;font-size:.82rem;text-align:center;margin-top:16px}
+</style>
+</head>
+<body>
+<h1>🛡️ Alarma Comunitaria</h1>
+
+<button id="robo"><span id="barra"></span><span class="ico">🚨</span>ROBO / EMERGENCIA<small>Mantén presionado 2 segundos</small></button>
+
+<a id="llamar" class="btn" href="tel:133">📞 Llamar al 133</a>
+
+<button id="inusual">⚠️ Avisar actividad inusual</button>
+<form id="formInusual" hidden>
+  <textarea id="mensaje" maxlength="300" placeholder="¿Qué está pasando? Ej: auto gris dando vueltas en la esquina"></textarea>
+  <button type="submit">Enviar aviso al grupo</button>
+</form>
+
+<p id="estado"></p>
+
+<details id="misDatos">
+  <summary>👤 Mis datos (para que sepan quién avisa)</summary>
+  <label>Nombre<input id="nombre" maxlength="60" placeholder="Ej: María Pérez"></label>
+  <label>Dirección o referencia<input id="direccion" maxlength="100" placeholder="Ej: Pasaje Los Robles 45"></label>
+  <button class="guardar" id="guardar">Guardar</button>
+</details>
+
+<details>
+  <summary>ℹ️ ¿Cómo funciona?</summary>
+  <p>Al activar la alarma se toma tu ubicación GPS y se abre WhatsApp con el mensaje listo. Elige el grupo de la comunidad y toca <b>Enviar</b>.</p>
+  <p>Para tenerla a mano: menú del navegador → <b>Agregar a pantalla de inicio</b> (en iPhone: Compartir → Agregar a inicio).</p>
+</details>
+
+<p class="nota">Ante un robo en curso, llama también al 133.</p>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const datos = JSON.parse(localStorage.getItem('datos') || '{}');
+$('nombre').value = datos.nombre || ''; $('direccion').value = datos.direccion || '';
+if (!datos.nombre) $('misDatos').open = true;
+$('guardar').onclick = () => {
+  localStorage.setItem('datos', JSON.stringify({ nombre: $('nombre').value.trim(), direccion: $('direccion').value.trim() }));
+  $('misDatos').open = false; $('estado').textContent = '✅ Datos guardados';
+};
+
+const ubicacion = () => new Promise((res) => {
+  if (!navigator.geolocation) return res(null);
+  navigator.geolocation.getCurrentPosition(
+    (p) => res(p.coords), () => res(null),
+    { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
+});
+
+async function enviar(tipo, detalle) {
+  $('estado').textContent = '📍 Obteniendo ubicación…';
+  const pos = await ubicacion();
+  const d = JSON.parse(localStorage.getItem('datos') || '{}');
+  const hora = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
+  const lineas = [
+    tipo === 'robo' ? '🚨🚨 *ALARMA: ROBO / EMERGENCIA* 🚨🚨' : '⚠️ *Aviso: actividad inusual*',
+    detalle || '',
+    `👤 ${d.nombre || 'Vecino/a'}${d.direccion ? ' — ' + d.direccion : ''}`,
+    pos ? `📍 Ubicación: https://maps.google.com/?q=${pos.latitude.toFixed(6)},${pos.longitude.toFixed(6)}` : '📍 (ubicación no disponible)',
+    `🕒 ${hora}`,
+    tipo === 'robo' ? '📞 Si puedes, llama al 133' : '',
+  ].filter(Boolean);
+  $('estado').textContent = pos ? '✅ Elige el grupo de la comunidad y toca Enviar' : '⚠️ Sin GPS: activa la ubicación. Elige el grupo y envía';
+  location.href = 'https://wa.me/?text=' + encodeURIComponent(lineas.join('\n'));
+}
+
+// Botón de robo: mantener 2 s para evitar activaciones accidentales
+(() => {
+  const btn = $('robo'), barra = $('barra'); let t0, raf;
+  const paso = () => {
+    const p = Math.min((Date.now() - t0) / 2000, 1); barra.style.width = p * 100 + '%';
+    if (p < 1) raf = requestAnimationFrame(paso);
+    else { soltar(); navigator.vibrate?.(300); enviar('robo'); }
+  };
+  const soltar = () => { cancelAnimationFrame(raf); barra.style.width = 0; };
+  btn.addEventListener('pointerdown', (e) => { e.preventDefault(); t0 = Date.now(); raf = requestAnimationFrame(paso); });
+  ['pointerup', 'pointerleave', 'pointercancel'].forEach((ev) => btn.addEventListener(ev, soltar));
+  btn.addEventListener('contextmenu', (e) => e.preventDefault());
+})();
+
+$('inusual').onclick = () => { $('formInusual').hidden = !$('formInusual').hidden; if (!$('formInusual').hidden) $('mensaje').focus(); };
+$('formInusual').onsubmit = (e) => { e.preventDefault(); enviar('inusual', $('mensaje').value.trim()); $('mensaje').value = ''; $('formInusual').hidden = true; };
+</script>
+</body>
+</html>
