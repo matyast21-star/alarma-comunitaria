@@ -1,0 +1,51 @@
+name: App Android VECI+
+
+on:
+  push:
+    branches: [main]
+    paths: ['android/**', '.github/workflows/android.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  apk:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Preparar clave de firma
+        env:
+          VECI_KEYSTORE_B64: ${{ secrets.VECI_KEYSTORE_B64 }}
+          VECI_KEYSTORE_PASSWORD: ${{ secrets.VECI_KEYSTORE_PASSWORD }}
+        run: |
+          if [ -z "$VECI_KEYSTORE_B64" ] || [ -z "$VECI_KEYSTORE_PASSWORD" ]; then
+            echo "::error::Faltan los secretos VECI_KEYSTORE_B64 y VECI_KEYSTORE_PASSWORD (Settings → Secrets and variables → Actions)"; exit 1
+          fi
+          echo "$VECI_KEYSTORE_B64" | base64 -d > android/veci.keystore
+
+      - name: Compilar APK
+        env:
+          VECI_KEYSTORE_PASSWORD: ${{ secrets.VECI_KEYSTORE_PASSWORD }}
+          VECI_VERSION_CODE: ${{ github.run_number }}
+        run: gradle -p android assembleRelease --no-daemon --stacktrace
+
+      - name: Publicar en Releases
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          cp android/app/build/outputs/apk/release/app-release.apk veci.apk
+          gh release create "app-v${{ github.run_number }}" veci.apk \
+            --title "VECI+ Android ${{ github.run_number }}" \
+            --notes "App de alarma comunitaria VECI+ para Android. Descarga veci.apk e instálala." \
+            --latest

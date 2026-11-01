@@ -1,0 +1,46 @@
+plugins {
+    id 'com.android.application'
+}
+
+def sitio = 'alarma-comunitaria.matyast21.workers.dev'
+
+android {
+    namespace 'cl.fluva.veci'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'cl.fluva.veci'
+        minSdk 21
+        targetSdk 34
+        versionCode Integer.parseInt(System.getenv('VECI_VERSION_CODE') ?: '1')
+        versionName "1.0.${System.getenv('VECI_VERSION_CODE') ?: '1'}"
+        manifestPlaceholders = [sitio: sitio]
+        resValue 'string', 'asset_statements',
+            "[{\\\"relation\\\": [\\\"delegate_permission/common.handle_all_urls\\\"], \\\"target\\\": {\\\"namespace\\\": \\\"web\\\", \\\"site\\\": \\\"https://${sitio}\\\"}}]"
+    }
+
+    signingConfigs {
+        release {
+            storeFile file('../veci.keystore')
+            storePassword System.getenv('VECI_KEYSTORE_PASSWORD')
+            keyAlias 'veci'
+            keyPassword System.getenv('VECI_KEYSTORE_PASSWORD')
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig signingConfigs.release
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'com.google.androidbrowserhelper:androidbrowserhelper:2.5.0'
+}

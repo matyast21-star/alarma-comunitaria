@@ -124,6 +124,7 @@ dialog .nota{font-size:.82rem;color:#94a3b8;margin-top:12px}
   <label>Dirección o referencia<input id="direccion" maxlength="100" placeholder="Ej: Parcela 12, camino Las Dichas"></label>
   <label id="filaCodigo" hidden>Código de la comunidad<input id="codigo" maxlength="40" autocomplete="off" placeholder="Te lo da el administrador"></label>
   <button class="btn" id="guardar">Guardar y activar alarmas</button>
+  <a class="btn" id="bajarApp" href="/app" hidden style="background:linear-gradient(135deg,#22c55e,#15803d)">📲 Descargar app Android<br><small style="font-weight:600">la sirena suena aunque el teléfono esté bloqueado</small></a>
   <p class="nota" id="ayudaIos" hidden>📱 En iPhone: primero toca <b>Compartir → Agregar a pantalla de inicio</b>, abre VECI+ desde ese ícono y activa las alarmas ahí.</p>
   <p class="nota"><b>Cómo funciona:</b> al enviar un aviso se toma tu ubicación GPS, suena la alarma en los teléfonos de los vecinos que activaron VECI+ y además se abre WhatsApp con el mensaje listo para el grupo.<br><br>Para tenerla a mano: menú del navegador → <b>Agregar a pantalla de inicio</b> (iPhone: Compartir → Agregar a inicio).</p>
 </dialog>
@@ -143,8 +144,14 @@ dialog .nota{font-size:.82rem;color:#94a3b8;margin-top:12px}
 const $ = (id) => document.getElementById(id);
 const leerDatos = () => JSON.parse(localStorage.getItem('datos') || '{}');
 const guardarDatos = (d) => localStorage.setItem('datos', JSON.stringify({ ...leerDatos(), ...d }));
+// Enlace con el código ya incluido: .../?codigo=XXXX
+(() => { const q = new URLSearchParams(location.search); const c = q.get('codigo');
+  if (c) { guardarDatos({ codigo: c.trim() }); q.delete('codigo'); history.replaceState(null, '', location.pathname + (q.toString() ? '?' + q : '')); } })();
 const esIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
-const instalada = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+if (document.referrer.startsWith('android-app://cl.fluva.veci')) sessionStorage.setItem('enApp', '1');
+const enApp = sessionStorage.getItem('enApp') === '1';
+const esAndroid = /android/i.test(navigator.userAgent);
+const instalada = enApp || matchMedia('(display-mode: standalone)').matches || navigator.standalone;
 let config = { publicKey: null, pideCodigo: false };
 
 async function api(ruta, body) {
@@ -152,6 +159,7 @@ async function api(ruta, body) {
   const opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: d.codigo || '', ...body }) } : {};
   const r = await fetch('/api/' + ruta + (body ? '' : (ruta.includes('?') ? '&' : '?') + 'codigo=' + encodeURIComponent(d.codigo || '')), opts);
   const j = await r.json().catch(() => ({}));
+  if (r.status === 403) { config.pideCodigo = true; setTimeout(abrirPanel, 300); }
   if (!r.ok) throw new Error(j.error || 'Sin conexión');
   return j;
 }
@@ -187,6 +195,7 @@ const abrirPanel = () => {
   $('nombre').value = d.nombre || ''; $('direccion').value = d.direccion || ''; $('codigo').value = d.codigo || '';
   $('filaCodigo').hidden = !config.pideCodigo;
   $('ayudaIos').hidden = !(esIos && !instalada);
+  $('bajarApp').hidden = !(esAndroid && !enApp);
   $('panel').showModal();
 };
 $('config').onclick = abrirPanel;
