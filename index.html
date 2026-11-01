@@ -63,6 +63,16 @@ dialog label{display:block;margin-top:12px;font-size:.9rem;color:#cbd5e1}
 dialog input{width:100%;padding:12px;margin-top:4px;border-radius:12px;border:1px solid #33408a;background:#0a1440;color:#fff;font-size:1rem}
 dialog .btn{margin-top:14px;background:#2563eb}
 dialog .nota{font-size:.82rem;color:#94a3b8;margin-top:12px}
+#avisos{display:flex;align-items:center;justify-content:center;gap:6px;margin:6px auto 0;padding:7px 14px;border-radius:999px;border:0;font-size:.88rem;font-weight:700;cursor:pointer;background:#f59e0b;color:#1f1300}
+#avisos.on{background:#0f1d55;color:#86efac;border:1px solid #166534;cursor:default}
+#alertaVista{width:min(94vw,440px);border:3px solid #ef4444;padding:16px}
+#alertaVista.inusual,#alertaVista.grupo{border-color:#f59e0b}
+#alertaVista h3{font-size:1.3rem}
+#alertaVista p{margin:6px 0}
+#avMapa{width:100%;height:230px;border:0;border-radius:12px;background:#0a1440;margin-top:8px}
+#avLink{background:#334155}
+#avSonido{background:#dc2626}
+#silenciar{background:#2563eb}
 </style>
 </head>
 <body>
@@ -73,6 +83,7 @@ dialog .nota{font-size:.82rem;color:#94a3b8;margin-top:12px}
     <svg width="16" height="20" viewBox="0 0 24 30" fill="#fff"><path d="M12 0C5.4 0 0 5.2 0 11.7 0 20.4 12 30 12 30s12-9.6 12-18.3C24 5.2 18.6 0 12 0zm0 16a4.5 4.5 0 110-9 4.5 4.5 0 010 9z"/></svg>
     <span>Las Dichas • Casablanca</span>
   </div>
+  <button id="avisos" hidden>🔔 Toca aquí para activar las alarmas en este teléfono</button>
 </header>
 
 <button id="robo" aria-label="Alerta ahora: mantener presionado 2 segundos">
@@ -111,49 +122,123 @@ dialog .nota{font-size:.82rem;color:#94a3b8;margin-top:12px}
   <p class="nota" style="margin-top:0">Tus datos se guardan solo en este teléfono y aparecen en los avisos para que sepan quién avisa.</p>
   <label>Tu nombre<input id="nombre" maxlength="60" placeholder="Ej: María Pérez"></label>
   <label>Dirección o referencia<input id="direccion" maxlength="100" placeholder="Ej: Parcela 12, camino Las Dichas"></label>
-  <button class="btn" id="guardar">Guardar</button>
-  <p class="nota"><b>Cómo funciona:</b> al enviar un aviso se toma tu ubicación GPS y se abre WhatsApp con el mensaje listo. Elige el grupo de la comunidad y toca Enviar.<br><br>Para tenerla a mano: menú del navegador → <b>Agregar a pantalla de inicio</b> (iPhone: Compartir → Agregar a inicio).</p>
+  <label id="filaCodigo" hidden>Código de la comunidad<input id="codigo" maxlength="40" autocomplete="off" placeholder="Te lo da el administrador"></label>
+  <button class="btn" id="guardar">Guardar y activar alarmas</button>
+  <p class="nota" id="ayudaIos" hidden>📱 En iPhone: primero toca <b>Compartir → Agregar a pantalla de inicio</b>, abre VECI+ desde ese ícono y activa las alarmas ahí.</p>
+  <p class="nota"><b>Cómo funciona:</b> al enviar un aviso se toma tu ubicación GPS, suena la alarma en los teléfonos de los vecinos que activaron VECI+ y además se abre WhatsApp con el mensaje listo para el grupo.<br><br>Para tenerla a mano: menú del navegador → <b>Agregar a pantalla de inicio</b> (iPhone: Compartir → Agregar a inicio).</p>
 </dialog>
+
+<dialog id="alertaVista">
+  <h3 id="avTitulo"></h3>
+  <p id="avTexto"></p>
+  <p class="nota" id="avMeta"></p>
+  <iframe id="avMapa" title="Mapa" loading="lazy"></iframe>
+  <a class="btn" id="avLink" target="_blank" rel="noopener">📍 Abrir en Google Maps</a>
+  <button class="btn" id="avSonido" hidden>🔊 Tocar para escuchar la sirena</button>
+  <button class="btn" id="silenciar">🔇 Silenciar y cerrar</button>
+</dialog>
+<audio id="sirena" src="sirena.mp3" loop preload="auto"></audio>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const leerDatos = () => JSON.parse(localStorage.getItem('datos') || '{}');
+const guardarDatos = (d) => localStorage.setItem('datos', JSON.stringify({ ...leerDatos(), ...d }));
+const esIos = /iphone|ipad|ipod/i.test(navigator.userAgent);
+const instalada = matchMedia('(display-mode: standalone)').matches || navigator.standalone;
+let config = { publicKey: null, pideCodigo: false };
 
-// Configuración
-const abrirPanel = () => { const d = leerDatos(); $('nombre').value = d.nombre || ''; $('direccion').value = d.direccion || ''; $('panel').showModal(); };
-$('config').onclick = abrirPanel;
-$('guardar').onclick = () => {
-  localStorage.setItem('datos', JSON.stringify({ nombre: $('nombre').value.trim(), direccion: $('direccion').value.trim() }));
-  $('panel').close(); $('estado').textContent = '✅ Datos guardados';
+async function api(ruta, body) {
+  const d = leerDatos();
+  const opts = body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ codigo: d.codigo || '', ...body }) } : {};
+  const r = await fetch('/api/' + ruta + (body ? '' : (ruta.includes('?') ? '&' : '?') + 'codigo=' + encodeURIComponent(d.codigo || '')), opts);
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(j.error || 'Sin conexión');
+  return j;
+}
+const b64aBytes = (b64) => Uint8Array.from(atob(b64.replace(/-/g, '+').replace(/_/g, '/') + '='.repeat((4 - b64.length % 4) % 4)), (c) => c.charCodeAt(0));
+
+// ---------- Alarmas en este teléfono (notificaciones) ----------
+const pushPosible = 'serviceWorker' in navigator && 'PushManager' in window && 'Notification' in window;
+function pintarEstado() {
+  const activas = leerDatos().endpoint && pushPosible && Notification.permission === 'granted';
+  const b = $('avisos'); b.hidden = false;
+  b.classList.toggle('on', !!activas);
+  b.textContent = activas ? '🔔 Alarmas activadas en este teléfono' : '🔕 Toca aquí para activar las alarmas en este teléfono';
+}
+async function activarAlarmas() {
+  if (!pushPosible) {
+    throw new Error(esIos && !instalada ? 'En iPhone primero agrega VECI+ a la pantalla de inicio (Compartir → Agregar a inicio) y ábrela desde ese ícono.' : 'Este navegador no permite alarmas. Usa Chrome o Safari actualizado.');
+  }
+  const permiso = await Notification.requestPermission();
+  if (permiso !== 'granted') throw new Error('Debes permitir las notificaciones para que suene la alarma.');
+  navigator.geolocation?.getCurrentPosition(() => {}, () => {});
+  const reg = await navigator.serviceWorker.ready;
+  if (!config.publicKey) config = await api('config');
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64aBytes(config.publicKey) });
+  const d = leerDatos();
+  await api('registro', { nombre: d.nombre, direccion: d.direccion, sub: sub.toJSON() });
+  guardarDatos({ endpoint: sub.endpoint });
+}
+
+// ---------- Configuración ----------
+const abrirPanel = () => {
+  const d = leerDatos();
+  $('nombre').value = d.nombre || ''; $('direccion').value = d.direccion || ''; $('codigo').value = d.codigo || '';
+  $('filaCodigo').hidden = !config.pideCodigo;
+  $('ayudaIos').hidden = !(esIos && !instalada);
+  $('panel').showModal();
 };
-if (!leerDatos().nombre) setTimeout(abrirPanel, 400);
+$('config').onclick = abrirPanel;
+$('avisos').onclick = () => { if (!$('avisos').classList.contains('on')) abrirPanel(); };
+$('guardar').onclick = async () => {
+  guardarDatos({ nombre: $('nombre').value.trim(), direccion: $('direccion').value.trim(), codigo: $('codigo').value.trim() });
+  $('panel').close();
+  $('estado').textContent = '⏳ Activando alarmas…';
+  try { await activarAlarmas(); $('estado').textContent = '✅ Listo: este teléfono sonará cuando un vecino active la alarma'; }
+  catch (e) { $('estado').textContent = '⚠️ ' + e.message; }
+  pintarEstado();
+};
 
+// ---------- Enviar ----------
 const ubicacion = () => new Promise((res) => {
   if (!navigator.geolocation) return res(null);
   navigator.geolocation.getCurrentPosition((p) => res(p.coords), () => res(null),
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 30000 });
 });
 
+async function avisarVecinos(datos) {
+  const r = await api('alerta', datos);
+  vistas.add(r.id); guardarVistas();
+  const extras = [];
+  for (let parte = 1; parte < r.partes; parte++) extras.push(api('lote', { id: r.id, parte }).catch(() => ({ enviados: 0 })));
+  const res = await Promise.all(extras);
+  return r.enviados + res.reduce((n, x) => n + (x.enviados || 0), 0);
+}
+
 async function enviar(tipo, detalle) {
   $('estado').textContent = '📍 Obteniendo ubicación…';
   const pos = await ubicacion();
   const d = leerDatos();
+  $('estado').textContent = '📡 Haciendo sonar la alarma en los teléfonos…';
+  let enviados = null;
+  try {
+    enviados = await avisarVecinos({ tipo, mensaje: detalle || '', nombre: d.nombre, direccion: d.direccion, endpoint: d.endpoint || '',
+      ...(pos ? { lat: pos.latitude, lng: pos.longitude } : {}) });
+  } catch (e) { console.warn(e); }
   const hora = new Date().toLocaleTimeString('es-CL', { hour: '2-digit', minute: '2-digit' });
-  const titulos = {
-    robo: '🚨🚨 *ALERTA: ROBO / EMERGENCIA* 🚨🚨',
-    inusual: '⚠️ *Aviso: actividad inusual*',
-    grupo: '📢 *Aviso a la comunidad*',
-  };
+  const titulos = { robo: '🚨🚨 *ALERTA: ROBO / EMERGENCIA* 🚨🚨', inusual: '⚠️ *Aviso: actividad inusual*', grupo: '📢 *Aviso a la comunidad*' };
   const lineas = [
-    titulos[tipo],
-    detalle || '',
+    titulos[tipo], detalle || '',
     `👤 ${d.nombre || 'Vecino/a'}${d.direccion ? ' — ' + d.direccion : ''}`,
     pos ? `📍 Ubicación: https://maps.google.com/?q=${pos.latitude.toFixed(6)},${pos.longitude.toFixed(6)}` : '📍 (ubicación no disponible)',
     `🕒 ${hora}`,
     tipo === 'robo' ? '📞 Si puedes, llama al 133' : '',
     '— VECI+ Las Dichas',
   ].filter(Boolean);
-  $('estado').textContent = pos ? '✅ Elige el grupo de la comunidad y toca Enviar' : '⚠️ Sin GPS: activa la ubicación. Elige el grupo y envía';
+  $('estado').textContent = (enviados != null ? `✅ Alarma sonando en ${enviados} teléfono(s). ` : '⚠️ No se pudo hacer sonar la alarma (sin conexión). ')
+    + 'Ahora envíalo también al grupo de WhatsApp.';
+  await new Promise((r) => setTimeout(r, 900));
   location.href = 'https://wa.me/?text=' + encodeURIComponent(lineas.join('\n'));
 }
 
@@ -174,6 +259,66 @@ async function enviar(tipo, detalle) {
 $('vecinos').onclick = () => { $('formInusual').hidden = !$('formInusual').hidden; if (!$('formInusual').hidden) $('mensaje').focus(); };
 $('formInusual').onsubmit = (e) => { e.preventDefault(); enviar('inusual', $('mensaje').value.trim()); $('mensaje').value = ''; $('formInusual').hidden = true; };
 $('grupo').onclick = () => enviar('grupo');
+
+// ---------- Recibir alertas: mapa + sirena ----------
+let vistas = new Set(JSON.parse(localStorage.getItem('vistas') || '[]'));
+const guardarVistas = () => localStorage.setItem('vistas', JSON.stringify([...vistas].slice(-60)));
+const sirena = $('sirena');
+function sonar() {
+  sirena.currentTime = 0;
+  sirena.play().then(() => { $('avSonido').hidden = true; }).catch(() => { $('avSonido').hidden = false; });
+  navigator.vibrate?.([900, 300, 900, 300, 900]);
+}
+function callar() { sirena.pause(); }
+$('avSonido').onclick = sonar;
+$('silenciar').onclick = () => { callar(); $('alertaVista').close(); $('avMapa').src = 'about:blank'; };
+
+function mostrarAlerta(a, conSonido) {
+  vistas.add(a.id); guardarVistas();
+  const v = $('alertaVista'); v.className = a.tipo;
+  $('avTitulo').textContent = a.titulo;
+  $('avTexto').textContent = a.mensaje || (a.tipo === 'robo' ? 'Un vecino activó la alarma.' : '');
+  $('avMeta').textContent = `${a.nombre}${a.direccion ? ' · ' + a.direccion : ''} · ${new Date(a.fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}`;
+  const hayPos = a.lat != null && a.lng != null;
+  $('avMapa').hidden = $('avLink').hidden = !hayPos;
+  if (hayPos) {
+    const z = 0.004;
+    $('avMapa').src = `https://www.openstreetmap.org/export/embed.html?bbox=${a.lng - z},${a.lat - z},${a.lng + z},${a.lat + z}&layer=mapnik&marker=${a.lat},${a.lng}`;
+    $('avLink').href = `https://www.google.com/maps?q=${a.lat},${a.lng}`;
+  }
+  if (!v.open) v.showModal();
+  if (conSonido) sonar();
+}
+
+async function revisarAlertas(idPedido) {
+  try {
+    const { alertas } = await api('alertas');
+    const buscada = idPedido && alertas.find((a) => a.id === idPedido);
+    const nueva = buscada || alertas.find((a) => !vistas.has(a.id) && Date.now() - Date.parse(a.fecha) < 10 * 60000);
+    if (nueva) mostrarAlerta(nueva, true);
+    else alertas.forEach((a) => vistas.add(a.id));
+    guardarVistas();
+  } catch { /* sin servidor todavía */ }
+}
+
+navigator.serviceWorker?.addEventListener('message', (e) => {
+  if (e.data?.tipo === 'alerta' || e.data?.tipo === 'abrir') revisarAlertas(e.data.id);
+});
+
+// ---------- Inicio ----------
+(async () => {
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  try { config = await api('config'); } catch {}
+  pintarEstado();
+  if (!leerDatos().nombre) setTimeout(abrirPanel, 400);
+  const idUrl = new URLSearchParams(location.search).get('alerta');
+  if (idUrl) history.replaceState(null, '', location.pathname);
+  // Al abrir por primera vez no hacemos sonar alertas antiguas
+  if (!localStorage.getItem('vistas') && !idUrl) { try { (await api('alertas')).alertas.forEach((a) => vistas.add(a.id)); guardarVistas(); } catch {} }
+  else revisarAlertas(idUrl);
+  setInterval(() => { if (!document.hidden) revisarAlertas(); }, 20000);
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) revisarAlertas(); });
+})();
 </script>
 </body>
 </html>
