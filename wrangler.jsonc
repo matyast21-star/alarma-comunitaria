@@ -11,6 +11,6 @@
     "run_worker_first": ["/api/*", "/.well-known/*", "/app", "/app.apk"]
   },
   "kv_namespaces": [
-    { "binding": "VECI_KV" }
+    { "binding": "VECI_KV", "id": "ce2d0a7f29f742e8ba489c81bddc1363" }
   ]
 }

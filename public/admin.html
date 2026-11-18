@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a1440">
+<meta name="robots" content="noindex">
+<title>VECI+ · Administración</title>
+<link rel="icon" href="favicon.png">
+<style>
+*{box-sizing:border-box}
+html{background:#0a1440}
+body{margin:0 auto;max-width:560px;min-height:100vh;font-family:system-ui,-apple-system,"Segoe UI",sans-serif;color:#fff;
+  padding:calc(12px + env(safe-area-inset-top)) 16px calc(24px + env(safe-area-inset-bottom));
+  background:radial-gradient(ellipse at 50% 0%,#1d3a8a 0%,#0a1440 55%),#0a1440}
+header{text-align:center}
+header img{width:min(52%,220px);height:auto;filter:drop-shadow(0 0 14px #22d3ee55)}
+header h1{margin:4px 0 14px;font-size:1.15rem;color:#e0e7ff;font-weight:700}
+.card{background:#111c4d;border:1px solid #2a3a80;border-radius:18px;padding:16px;margin-top:14px}
+.card h2{margin:0 0 6px;font-size:1.15rem}
+label{display:block;margin-top:10px;font-size:.9rem;color:#cbd5e1}
+input{width:100%;padding:12px;margin-top:4px;border-radius:12px;border:1px solid #33408a;background:#0a1440;color:#fff;font-size:1rem}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;margin-top:12px;border:0;border-radius:14px;color:#fff;font-weight:800;font-size:1rem;padding:13px;cursor:pointer;text-decoration:none;background:#2563eb}
+.btn.verde{background:linear-gradient(135deg,#22c55e,#15803d)}
+.btn.gris{background:#334155}
+.btn.rojo{background:#b91c1c}
+.btn.chico{width:auto;margin:6px 6px 0 0;padding:8px 12px;font-size:.88rem;border-radius:10px;display:inline-flex}
+.nota{font-size:.85rem;color:#94a3b8;margin:8px 0 0}
+.codigo{font-size:1.9rem;font-weight:900;letter-spacing:1px;text-align:center;padding:12px;border-radius:14px;background:#0a1440;border:2px dashed #22d3ee;margin-top:8px;word-break:break-all}
+.clave{font-family:ui-monospace,monospace;font-size:1rem;padding:10px;border-radius:10px;background:#0a1440;border:1px solid #f59e0b;word-break:break-all;margin-top:6px}
+.badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:.8rem;font-weight:800}
+.badge.pendiente{background:#f59e0b;color:#1f1300}.badge.activa{background:#166534;color:#dcfce7}.badge.pausada{background:#475569;color:#e2e8f0}
+#qr{display:flex;justify-content:center;margin-top:12px}
+#qr canvas,#qr img{background:#fff;padding:10px;border-radius:12px;width:200px;height:200px}
+.dato{display:flex;justify-content:space-between;gap:10px;padding:8px 0;border-bottom:1px solid #22306e;font-size:.95rem}
+.loc{padding:12px 0;border-bottom:1px solid #22306e}
+.loc b{font-size:1.02rem}
+.alerta{font-size:.88rem;padding:6px 0;border-bottom:1px solid #22306e;color:#e2e8f0}
+#msg{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);max-width:92vw;padding:10px 16px;border-radius:12px;background:#0f172a;border:1px solid #334155;font-weight:700;display:none;z-index:9}
+.link{background:none;border:0;color:#93c5fd;text-decoration:underline;cursor:pointer;font-size:.9rem;padding:0}
+[hidden]{display:none!important}
+</style>
+</head>
+<body>
+<header>
+  <a href="/"><img src="logo.webp" alt="VECI+ by fluva" width="800" height="411"></a>
+  <h1>Administración de sectores</h1>
+</header>
+
+<!-- Sin sesión -->
+<section id="inicio">
+  <div class="card">
+    <h2>🏘️ Quiero VECI+ en mi sector</h2>
+    <p class="nota" style="margin-top:0">Pide el alta de tu localidad. Cuando FLUVA la apruebe, recibirás el código para repartir a tus vecinos.</p>
+    <form id="formSolicitud">
+      <label>Nombre del sector o villa<input id="sNombre" maxlength="40" required placeholder="Ej: Villa Los Aromos"></label>
+      <label>Comuna<input id="sComuna" maxlength="40" required placeholder="Ej: Casablanca"></label>
+      <label>Tu nombre (administrador)<input id="sAdmin" maxlength="60" required placeholder="Ej: Juan Soto"></label>
+      <label>Tu WhatsApp o teléfono<input id="sContacto" maxlength="30" required inputmode="tel" placeholder="Ej: +56 9 1234 5678"></label>
+      <button class="btn verde" type="submit">Enviar solicitud</button>
+    </form>
+  </div>
+  <div class="card">
+    <h2>🔑 Ya soy administrador</h2>
+    <label>Clave de administrador<input id="claveAdmin" autocomplete="off" autocapitalize="none" placeholder="sector.xxxxxxxx"></label>
+    <button class="btn" id="entrarAdmin">Entrar</button>
+    <p class="nota"><button class="link" id="verDueno">Soy el dueño de VECI+</button></p>
+    <div id="filaDueno" hidden>
+      <label>Clave de dueño<input id="claveDueno" type="password" autocomplete="current-password"></label>
+      <button class="btn gris" id="entrarDueno">Entrar como dueño</button>
+    </div>
+  </div>
+</section>
+
+<!-- Panel de una localidad -->
+<section id="panel" hidden>
+  <div class="card" id="avisoClave" hidden>
+    <h2>⚠️ Guarda tu clave de administrador</h2>
+    <p class="nota" style="margin-top:0">Quedó guardada en este teléfono, pero anótala o mándatela por WhatsApp: la necesitas para entrar desde otro equipo.</p>
+    <div class="clave" id="claveNueva"></div>
+    <button class="btn chico gris" id="copiarClave">Copiar clave</button>
+    <a class="btn chico verde" id="avisarDueno" target="_blank" rel="noopener" hidden>Avisar a FLUVA por WhatsApp</a>
+  </div>
+  <div class="card">
+    <h2 id="pNombre"></h2>
+    <span class="badge" id="pEstado"></span>
+    <p class="nota" id="pEstadoTexto"></p>
+    <div id="bloqueCodigo">
+      <p class="nota">Código para tus vecinos:</p>
+      <div class="codigo" id="pCodigo"></div>
+      <div id="qr"></div>
+      <button class="btn verde" id="compartir">📲 Compartir por WhatsApp</button>
+      <button class="btn gris" id="copiarEnlace">🔗 Copiar enlace</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="dato"><span>Vecinos con alarmas activadas</span><b id="pVecinos">–</b></div>
+    <div class="dato"><span>Administrador</span><b id="pAdmin"></b></div>
+    <h2 style="margin-top:14px;font-size:1rem">Últimas alertas</h2>
+    <div id="pAlertas"><p class="nota">Sin alertas todavía.</p></div>
+  </div>
+  <div class="card">
+    <h2 style="font-size:1rem">¿Se filtró el código?</h2>
+    <p class="nota" style="margin-top:0">Puedes cambiarlo. Los vecinos ya registrados siguen recibiendo alarmas, pero para enviar tendrán que escribir el código nuevo.</p>
+    <button class="btn rojo" id="cambiarCodigo">Cambiar código</button>
+  </div>
+  <button class="btn gris" id="volverDueno" hidden>← Volver a todas las localidades</button>
+  <button class="btn gris" id="salir">Salir</button>
+</section>
+
+<!-- Panel del dueño -->
+<section id="dueno" hidden>
+  <div class="card">
+    <h2>👑 Localidades</h2>
+    <p class="nota" style="margin-top:0">Las solicitudes nuevas aparecen arriba. Al aprobarlas, su código empieza a funcionar.</p>
+    <div id="lista"></div>
+  </div>
+  <div class="card" id="claveGenerada" hidden>
+    <h2 style="font-size:1rem">Nueva clave de administrador</h2>
+    <p class="nota" style="margin-top:0" id="claveGeneradaPara"></p>
+    <div class="clave" id="claveGeneradaTexto"></div>
+    <a class="btn chico verde" id="claveGeneradaWa" target="_blank" rel="noopener">Enviar por WhatsApp</a>
+  </div>
+  <button class="btn gris" id="salirDueno">Salir</button>
+</section>
+
+<div id="msg"></div>
+
+<script src="qrcode.min.js"></script>
+<script>
+const $ = (id) => document.getElementById(id);
+const leer = (k) => { try { return localStorage.getItem(k) || ''; } catch { return ''; } };
+const guardar = (k, v) => { try { v ? localStorage.setItem(k, v) : localStorage.removeItem(k); } catch {} };
+const esc = (t) => String(t ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const telWa = (t) => { let n = String(t || '').replace(/\D/g, ''); if (n.length === 9 && n[0] === '9') n = '56' + n; return n; };
+function aviso(t) { const m = $('msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(aviso.t); aviso.t = setTimeout(() => (m.style.display = 'none'), 3500); }
+async function copiar(t) { try { await navigator.clipboard.writeText(t); aviso('✅ Copiado'); } catch { prompt('Copia este texto:', t); } }
+
+let sesion = { clave: leer('veciAdmin'), dueno: leer('veciDueno'), locDueno: '' };
+async function api(ruta, body, clave, loc) {
+  const headers = { 'X-Clave': clave || '' };
+  if (loc) headers['X-Localidad'] = loc;
+  if (body) headers['Content-Type'] = 'application/json';
+  const r = await fetch('/api/' + ruta, { method: body ? 'POST' : 'GET', headers, body: body ? JSON.stringify(body) : undefined });
+  const j = await r.json().catch(() => ({}));
+  if (!r.ok) throw Object.assign(new Error(j.error || 'Sin conexión'), { status: r.status });
+  return j;
+}
+const mostrar = (id) => ['inicio', 'panel', 'dueno'].forEach((s) => ($(s).hidden = s !== id));
+const enlace = (codigo) => `${location.origin}/?codigo=${encodeURIComponent(codigo)}`;
+const textosEstado = {
+  pendiente: 'Tu solicitud está esperando aprobación. El código empezará a funcionar cuando FLUVA la apruebe.',
+  activa: 'Comparte el enlace o el código con los vecinos de tu sector.',
+  pausada: 'Esta localidad está pausada: los vecinos no pueden enviar alertas.',
+};
+
+// ---------- Panel de localidad ----------
+const llamarPanel = (ruta, body) => sesion.locDueno ? api(ruta, body, sesion.dueno, sesion.locDueno) : api(ruta, body, sesion.clave);
+let actual = null;
+async function abrirPanel() {
+  try {
+    const p = await llamarPanel('admin/panel');
+    actual = p.localidad;
+    const l = p.localidad;
+    $('pNombre').textContent = `${l.nombre} • ${l.comuna}`;
+    $('pEstado').textContent = l.estado; $('pEstado').className = 'badge ' + l.estado;
+    $('pEstadoTexto').textContent = textosEstado[l.estado] || '';
+    $('pCodigo').textContent = l.codigo;
+    $('pVecinos').textContent = p.vecinos;
+    $('pAdmin').textContent = l.admin || '—';
+    $('pAlertas').innerHTML = p.alertas.length ? p.alertas.map((a) =>
+      `<div class="alerta">${esc(a.titulo)} · ${esc(a.nombre)}<br><span class="nota">${new Date(a.fecha).toLocaleString('es-CL', { dateStyle: 'short', timeStyle: 'short' })}${a.mensaje ? ' · ' + esc(a.mensaje) : ''}</span></div>`).join('') : '<p class="nota">Sin alertas todavía.</p>';
+    $('qr').innerHTML = '';
+    if (window.QRCode) new QRCode($('qr'), { text: enlace(l.codigo), width: 400, height: 400, correctLevel: QRCode.CorrectLevel.M });
+    $('volverDueno').hidden = !sesion.locDueno;
+    $('salir').hidden = !!sesion.locDueno;
+    mostrar('panel');
+  } catch (e) {
+    aviso('⚠️ ' + e.message);
+    if (e.status === 401 && !sesion.locDueno) { sesion.clave = ''; guardar('veciAdmin', ''); mostrar('inicio'); }
+  }
+}
+$('compartir').onclick = () => {
+  const t = `🛡️ *VECI+ Alarma Comunitaria — ${actual.nombre}*\n\nActiva la alarma de nuestro sector en tu teléfono (es gratis):\n👉 ${enlace(actual.codigo)}\n\nSi te pide código, escribe: *${actual.codigo}*\n\nAsí sonará tu teléfono cuando un vecino avise de un robo o algo raro.`;
+  location.href = 'https://wa.me/?text=' + encodeURIComponent(t);
+};
+$('copiarEnlace').onclick = () => copiar(enlace(actual.codigo));
+$('copiarClave').onclick = () => copiar($('claveNueva').textContent);
+$('cambiarCodigo').onclick = async () => {
+  if (!confirm('¿Seguro? El código actual dejará de funcionar para enviar alertas.')) return;
+  try { await llamarPanel('admin/codigo', {}); aviso('✅ Código cambiado'); abrirPanel(); } catch (e) { aviso('⚠️ ' + e.message); }
+};
+$('salir').onclick = () => { if (!confirm('¿Salir? Necesitarás tu clave para volver a entrar.')) return; sesion.clave = ''; guardar('veciAdmin', ''); $('avisoClave').hidden = true; mostrar('inicio'); };
+$('volverDueno').onclick = () => { sesion.locDueno = ''; abrirDueno(); };
+
+// ---------- Solicitud ----------
+$('formSolicitud').onsubmit = async (e) => {
+  e.preventDefault();
+  const datos = { nombre: $('sNombre').value, comuna: $('sComuna').value, admin: $('sAdmin').value, contacto: $('sContacto').value };
+  try {
+    const r = await api('solicitar', datos);
+    sesion.clave = r.clave; guardar('veciAdmin', r.clave);
+    $('claveNueva').textContent = r.clave;
+    $('avisoClave').hidden = false;
+    if (r.whatsappDueno) {
+      $('avisarDueno').hidden = false;
+      $('avisarDueno').href = `https://wa.me/${telWa(r.whatsappDueno)}?text=` + encodeURIComponent(`Hola, pedí VECI+ para ${r.localidad.nombre} (${r.localidad.comuna}). Soy ${r.localidad.admin}. ¿Me la puedes aprobar?`);
+    }
+    abrirPanel();
+  } catch (err) { aviso('⚠️ ' + err.message); }
+};
+$('entrarAdmin').onclick = () => {
+  const c = $('claveAdmin').value.trim();
+  if (!c) return aviso('Escribe tu clave');
+  sesion.clave = c; guardar('veciAdmin', c); sesion.locDueno = ''; abrirPanel();
+};
+
+// ---------- Dueño ----------
+$('verDueno').onclick = () => { $('filaDueno').hidden = !$('filaDueno').hidden; };
+$('entrarDueno').onclick = () => { sesion.dueno = $('claveDueno').value; abrirDueno(true); };
+$('salirDueno').onclick = () => { sesion.dueno = ''; guardar('veciDueno', ''); mostrar('inicio'); };
+
+async function abrirDueno(recordar) {
+  try {
+    const { localidades } = await api('dueno/localidades', null, sesion.dueno);
+    if (recordar) guardar('veciDueno', sesion.dueno);
+    $('lista').innerHTML = localidades.map((l) => `
+      <div class="loc">
+        <b>${esc(l.nombre)} • ${esc(l.comuna)}</b> <span class="badge ${esc(l.estado)}">${esc(l.estado)}</span>
+        <p class="nota">Admin: ${esc(l.admin || '—')}${l.contacto ? ' · ' + esc(l.contacto) : ''} · código <b>${esc(l.codigo || '')}</b>${l.creada ? ' · ' + new Date(l.creada).toLocaleDateString('es-CL') : ''}</p>
+        ${l.estado !== 'activa' ? `<button class="btn chico verde" data-acc="activa" data-id="${esc(l.id)}">${l.estado === 'pendiente' ? 'Aprobar' : 'Reactivar'}</button>` : ''}
+        ${l.estado === 'activa' ? `<button class="btn chico gris" data-acc="pausada" data-id="${esc(l.id)}">Pausar</button>` : ''}
+        <button class="btn chico" data-acc="ver" data-id="${esc(l.id)}">Ver panel</button>
+        <button class="btn chico gris" data-acc="clave" data-id="${esc(l.id)}" data-tel="${esc(l.contacto || '')}" data-nombre="${esc(l.nombre)}">Nueva clave admin</button>
+        ${l.id !== 'lasdichas' ? `<button class="btn chico rojo" data-acc="borrar" data-id="${esc(l.id)}" data-nombre="${esc(l.nombre)}">${l.estado === 'pendiente' ? 'Rechazar' : 'Borrar'}</button>` : ''}
+      </div>`).join('') || '<p class="nota">No hay localidades.</p>';
+    mostrar('dueno');
+  } catch (e) {
+    aviso('⚠️ ' + e.message);
+    if (e.status === 401) { sesion.dueno = ''; guardar('veciDueno', ''); mostrar('inicio'); }
+  }
+}
+$('lista').onclick = async (e) => {
+  const b = e.target.closest('button[data-acc]'); if (!b) return;
+  const { acc, id } = b.dataset;
+  try {
+    if (acc === 'ver') { sesion.locDueno = id; return abrirPanel(); }
+    if (acc === 'activa' || acc === 'pausada') await api('dueno/estado', { id, estado: acc }, sesion.dueno);
+    if (acc === 'borrar') {
+      if (!confirm(`¿Borrar "${b.dataset.nombre}"? Sus vecinos dejarán de recibir alarmas.`)) return;
+      await api('dueno/borrar', { id }, sesion.dueno);
+    }
+    if (acc === 'clave') {
+      if (!confirm('Se creará una clave nueva y la anterior dejará de funcionar. ¿Seguir?')) return;
+      const r = await api('dueno/clave', { id }, sesion.dueno);
+      $('claveGenerada').hidden = false;
+      $('claveGeneradaPara').textContent = `Para el admin de ${b.dataset.nombre}. Entra en ${location.origin}/admin`;
+      $('claveGeneradaTexto').textContent = r.clave;
+      $('claveGeneradaWa').href = `https://wa.me/${telWa(b.dataset.tel)}?text=` + encodeURIComponent(`Tu clave de administrador de VECI+ (${b.dataset.nombre}) es:\n${r.clave}\n\nEntra en ${location.origin}/admin`);
+    }
+    aviso('✅ Listo');
+    abrirDueno();
+  } catch (err) { aviso('⚠️ ' + err.message); }
+};
+
+// ---------- Inicio ----------
+if (sesion.dueno) abrirDueno();
+else if (sesion.clave) abrirPanel();
+</script>
+</body>
+</html>
